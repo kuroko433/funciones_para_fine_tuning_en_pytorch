@@ -34,7 +34,7 @@ def multi_conf_matrix(true_data, pred_data, classes, color="Blues"):
 
 ###### matriz de confusion pero solo colorea los porcentajes #########
 
-def multi_conf_matrix(true_data, pred_data, classes, color="Blues"):
+def multi_conf_matrix_2(true_data, pred_data, classes, color="Blues"):
     """
     Plotea una matriz de confusión coloreada según el porcentaje de acierto,
     sin números y con el mayor acierto en color más oscuro.
