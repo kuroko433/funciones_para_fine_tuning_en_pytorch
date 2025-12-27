@@ -1,7 +1,28 @@
+########librerias 
+####### librerias ########
+
+import os
+import torch                     # Reemplaza a tensorflow
+import torch.nn as nn            # Para definir capas y modelos
+import torch.optim as optim      # Para optimizadores (Adam, SGD, etc.)
+import torch.nn.functional as F   # Funciones como relu, softmax, etc. (opcional, pero útil)
+from torch.utils.data import DataLoader, TensorDataset  # Para manejar datos en batches
+
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import seaborn as sn
+from sklearn.metrics import confusion_matrix, accuracy_score  # Estos siguen iguales
+
+import torchvision.transforms as transforms
+from torchvision.datasets import ImageFolder
+from torch.utils.data import DataLoader, random_split
+from torchvision.models import efficientnet_v2_s, EfficientNet_V2_S_Weights
+from PIL import Image
+import random
 ##### funciones para hacer fine tuning con pytorch con efficientnet_v2_s #########
 
 ######### funcion para hacer una matriz de confusion #########
-
 def multi_conf_matrix(true_data, pred_data, classes, color="Blues"):
     """
     Plotea una matriz de confusión con valores absolutos y porcentajes.
@@ -37,38 +58,45 @@ def multi_conf_matrix(true_data, pred_data, classes, color="Blues"):
 def multi_conf_matrix_2(true_data, pred_data, classes, color="Blues"):
     """
     Plotea una matriz de confusión coloreada según el porcentaje de acierto,
-    sin números y con el mayor acierto en color más oscuro.
+    sin números y con el mayor acierto (100%) en color más oscuro.
 
     Args:
         true_data: Array con etiquetas verdaderas.
         pred_data: Array con etiquetas predichas.
-        classes: Lista de nombres de clases.
-        color: Colormap base (se agregará _r para invertir). Por defecto 'Blues'.
+        classes: Lista de nombres de clases (16 personajes).
+        color: Colormap base (ej: 'Blues', 'Greens', 'Purples', 'Oranges', 'viridis').
+               NO se invertirá: alto % = oscuro.
     """
+    # Matriz de confusión
     cm = confusion_matrix(true_data, pred_data)
     
     # Porcentajes por fila
     cm_percentage = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis] * 100
     cm_percentage = np.nan_to_num(cm_percentage)
 
-    # Invertir el colormap agregando '_r'
-    inverted_color = color + "_r" if not color.endswith("_r") else color
+    # Usamos el colormap NORMAL (sin _r) → valores altos = más oscuro
+    normal_cmap = color  # Ej: "Blues" → 0% claro, 100% azul oscuro
 
-    plt.figure(figsize=(10, 8))
+    plt.figure(figsize=(12, 10))
     
     sn.heatmap(cm_percentage, 
-               annot=False,                    # Sin números
-               cmap=inverted_color,            # Colormap invertido → 100% más oscuro
-               vmin=0, vmax=100,               # Escala fija 0-100%
+               annot=False,
+               cmap=normal_cmap,               # ← Sin invertir: alto = oscuro
+               vmin=0, vmax=100,
                xticklabels=classes, 
                yticklabels=classes,
-               cbar_kws={"label": "Porcentaje (%)"})
+               cbar_kws={"label": "Porcentaje (%)", "shrink": 0.8},
+               linewidths=0.5, linecolor='gray',
+               square=True)  # Opcional: celdas cuadradas para mejor proporción
     
-    plt.xlabel('Predicted')
-    plt.ylabel('True')
-    plt.title('Matriz de Confusión - Mayor Acierto = Más Oscuro')
+    plt.xlabel('Predicted', fontsize=12)
+    plt.ylabel('True', fontsize=12)
+    plt.title('Matriz de Confusión - Mayor Acierto = Más Oscuro', fontsize=14, pad=20)
+    plt.xticks(rotation=45, ha='right')
+    plt.yticks(rotation=0)
+    plt.tight_layout()
     plt.show()
-    pass
+    
 
 
 
@@ -158,14 +186,10 @@ def create_model(
 ######### early stopping #########
 
 
+import copy  # ← Añade este import al principio del archivo
+
 class EarlyStopping:
     def __init__(self, patience=3, min_delta=0, restore_best_weights=True):
-        """
-        Args:
-            patience (int): Cuántos epochs esperar sin mejora antes de parar (igual que tu patience=3).
-            min_delta (float): Mejora mínima considerada como progreso (0 = cualquier mejora).
-            restore_best_weights (bool): Si True, al final carga los mejores pesos encontrados.
-        """
         self.patience = patience
         self.min_delta = min_delta
         self.restore_best_weights = restore_best_weights
@@ -177,12 +201,13 @@ class EarlyStopping:
     def __call__(self, val_loss, model):
         if self.best_loss is None:
             self.best_loss = val_loss
-            self.best_weights = model.state_dict()
+            self.best_weights = copy.deepcopy(model.state_dict())  # ← COPIA PROFUNDA
         elif val_loss < self.best_loss - self.min_delta:
             # Mejora detectada
             self.best_loss = val_loss
             self.counter = 0
-            self.best_weights = model.state_dict()
+            self.best_weights = copy.deepcopy(model.state_dict())  # ← COPIA PROFUNDA
+            print(f"Nuevo mejor val_loss: {self.best_loss:.4f}")
         else:
             # No hay mejora
             self.counter += 1
@@ -190,13 +215,16 @@ class EarlyStopping:
             if self.counter >= self.patience:
                 print("Early stopping activado")
                 self.early_stop = True
-                if self.restore_best_weights:
+                if self.restore_best_weights and self.best_weights is not None:
                     model.load_state_dict(self.best_weights)
+                    print("Pesos del mejor modelo restaurados correctamente.")
                     pass
                 pass
             pass
         pass
     pass
+
+
 
 
 ######### para entrenar el modelo #########
@@ -497,6 +525,3 @@ def predict_and_visualize_random_samples(val_loader, model, class_names, num_sam
     plt.subplots_adjust(left=0.05, right=0.95, top=0.93, bottom=0.22, hspace=0.3, wspace=0.1)
     plt.show()
     pass
-
-
-
